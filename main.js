@@ -1,12 +1,12 @@
 const map = L.map('map').setView([43.7, -79.4], 8);
 
-// Carto Light basemap (fixed)
+// Carto Light base layer
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; CartoDB'
 }).addTo(map);
 
-// Delivery layer sources (4 groups)
-const layerSources = {
+// ✅ GeoJSON layers for delivery zones
+const geoLayers = {
   "Wed Group": {
     url: "https://klabbyklab.github.io/maplayers/wed_group.geojson",
     color: "green"
@@ -26,11 +26,9 @@ const layerSources = {
 };
 
 const deliveryLayers = {};
-const turfPolygons = [];
+const geoControl = document.getElementById('layer-controls');
 
-const controlContainer = document.getElementById('layer-controls');
-
-Object.entries(layerSources).forEach(([name, { url, color }]) => {
+Object.entries(geoLayers).forEach(([name, { url, color }]) => {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = name;
@@ -43,7 +41,7 @@ Object.entries(layerSources).forEach(([name, { url, color }]) => {
   const wrapper = document.createElement('div');
   wrapper.appendChild(checkbox);
   wrapper.appendChild(label);
-  controlContainer.appendChild(wrapper);
+  geoControl.appendChild(wrapper);
 
   fetch(url)
     .then(res => res.json())
@@ -60,7 +58,6 @@ Object.entries(layerSources).forEach(([name, { url, color }]) => {
       }).addTo(map);
 
       deliveryLayers[name] = layer;
-      turfPolygons.push({ name, data });
 
       checkbox.addEventListener('change', (e) => {
         e.target.checked ? layer.addTo(map) : map.removeLayer(layer);
@@ -68,58 +65,67 @@ Object.entries(layerSources).forEach(([name, { url, color }]) => {
     });
 });
 
-// Postal code search with feedback
-document.getElementById('search-form').addEventListener('submit', function (e) {
-  e.preventDefault();
+// ✅ CSV layers from Google Sheets
 
-  const postal = document.getElementById('postal').value.trim();
-  const result = document.getElementById('result');
-  result.textContent = "🔎 Searching…";
+const csvSources = {
+  "3 Weeks Out": {
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vS2LfOVQyErcTtEMSwS1ch4GfUlcpXnNfih841L1Vms0B-9pNMSh9vW5k0TNrXDoQgv2-lgDnYWdzgM/pub?output=csv",
+    color: "purple"
+  },
+  "2 Weeks Out": {
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQkTCHp6iaWJBboax7x-Ic8kmX6jlYkTzJhnCnv2WfPtmo70hXPijk0p1JI03vBQTPuyPuDVWzxbavP/pub?output=csv",
+    color: "orange"
+  },
+  "1 Week Out": {
+    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSZ1kJEo0ZljAhlg4Lnr_Shz3-OJnV6uehE8vCA8280L4aCfNoWE85WEJnOG2jzL2jE-o0PWTMRZiFu/pub?output=csv",
+    color: "black"
+  }
+};
 
-  if (!postal) return;
+const csvLayers = {};
+const csvControl = document.getElementById('csv-controls');
 
-  const query = encodeURIComponent(postal + " Ontario Canada");
-  const url = `https://nominatim.openstreetmap.org/search?q=${query}&countrycodes=ca&format=json`;
+Object.entries(csvSources).forEach(([name, { url, color }]) => {
+  const layer = L.layerGroup().addTo(map);
+  csvLayers[name] = layer;
 
-  fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      if (!data || !data.length) {
-        result.textContent = "❌ Postal code not found.";
-        return;
-      }
+  // UI checkbox
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = name;
+  checkbox.checked = true;
 
-      const lat = parseFloat(data[0].lat);
-      const lon = parseFloat(data[0].lon);
-      const point = turf.point([lon, lat]);
+  const label = document.createElement('label');
+  label.htmlFor = name;
+  label.textContent = ` ${name}`;
 
-      map.setView([lat, lon], 13);
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(checkbox);
+  wrapper.appendChild(label);
+  csvControl.appendChild(wrapper);
 
-      let found = false;
+  checkbox.addEventListener('change', (e) => {
+    e.target.checked ? layer.addTo(map) : map.removeLayer(layer);
+  });
 
-      turfPolygons.forEach(({ name, data }) => {
-        data.features.forEach(feature => {
-          const polygon = turf.feature(feature.geometry);
-          if (turf.booleanPointInPolygon(point, polygon)) {
-            found = true;
-            result.textContent = `✅ We deliver to this postal code on **${name.replace(" Group", "")}**.`;
-            L.popup()
-              .setLatLng([lat, lon])
-              .setContent(`✅ You’re in our **${name.replace(" Group", "")}** delivery zone!`)
-              .openOn(map);
-          }
-        });
+  // Load and parse CSV
+  Papa.parse(url, {
+    download: true,
+    header: true,
+    complete: function(results) {
+      results.data.forEach(row => {
+        const lat = parseFloat(row.lat || row.latitude);
+        const lon = parseFloat(row.lon || row.longitude);
+
+        if (!isNaN(lat) && !isNaN(lon)) {
+          const marker = L.circleMarker([lat, lon], {
+            radius: 5,
+            color,
+            fillOpacity: 0.8
+          }).bindPopup(`Name: ${row.name || "N/A"}`);
+          marker.addTo(layer);
+        }
       });
-
-      if (!found) {
-        result.textContent = "❌ Sorry, we do not currently deliver to this postal code.";
-        L.popup()
-          .setLatLng([lat, lon])
-          .setContent(`❌ Not in a delivery zone.`)
-          .openOn(map);
-      }
-    })
-    .catch(() => {
-      result.textContent = "⚠️ Error searching postal code.";
-    });
+    }
+  });
 });
