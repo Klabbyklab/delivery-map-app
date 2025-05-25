@@ -9,9 +9,9 @@ body, html {
 #controls {
   padding: 10px;
   background-color: white;
+  border-bottom: 1px solid #ccc;
   z-index: 1000;
   position: relative;
-  border-bottom: 1px solid #ccc;
 }
 
 #map {
@@ -22,8 +22,20 @@ body, html {
 #layer-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+  margin-bottom: 10px;
 }
+
+#layer-controls div {
+  display: flex;
+  align-items: center;
+  min-width: 160px;
+}
+
+#layer-controls input {
+  margin-right: 6px;
+}
+
 
 #layer-controls div {
   min-width: 140px;
