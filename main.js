@@ -1,11 +1,11 @@
 const map = L.map('map').setView([43.7, -79.4], 8);
 
-// Carto Light base layer
+// Carto Light basemap
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; CartoDB'
 }).addTo(map);
 
-// ✅ GeoJSON layers for delivery zones
+// Always-on delivery zones
 const geoLayers = {
   "Wed Group": {
     url: "https://klabbyklab.github.io/maplayers/wed_group.geojson",
@@ -25,28 +25,11 @@ const geoLayers = {
   }
 };
 
-const deliveryLayers = {};
-const geoControl = document.getElementById('layer-controls');
-
 Object.entries(geoLayers).forEach(([name, { url, color }]) => {
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.id = name;
-  checkbox.checked = true;
-
-  const label = document.createElement('label');
-  label.htmlFor = name;
-  label.textContent = ` ${name}`;
-
-  const wrapper = document.createElement('div');
-  wrapper.appendChild(checkbox);
-  wrapper.appendChild(label);
-  geoControl.appendChild(wrapper);
-
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      const layer = L.geoJSON(data, {
+      L.geoJSON(data, {
         style: {
           color,
           weight: 2,
@@ -56,17 +39,10 @@ Object.entries(geoLayers).forEach(([name, { url, color }]) => {
           layer.bindPopup(name);
         }
       }).addTo(map);
-
-      deliveryLayers[name] = layer;
-
-      checkbox.addEventListener('change', (e) => {
-        e.target.checked ? layer.addTo(map) : map.removeLayer(layer);
-      });
     });
 });
 
-// ✅ CSV layers from Google Sheets
-
+// CSV delivery layers
 const csvSources = {
   "3 Weeks Out": {
     url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vS2LfOVQyErcTtEMSwS1ch4GfUlcpXnNfih841L1Vms0B-9pNMSh9vW5k0TNrXDoQgv2-lgDnYWdzgM/pub?output=csv",
