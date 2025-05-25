@@ -5,7 +5,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; CartoDB'
 }).addTo(map);
 
-// Always-on delivery zones
+// Always-visible delivery zone layers
 const geoLayers = {
   "Wed Group": {
     url: "https://klabbyklab.github.io/maplayers/wed_group.geojson",
@@ -42,7 +42,7 @@ Object.entries(geoLayers).forEach(([name, { url, color }]) => {
     });
 });
 
-// CSV delivery layers
+// Google Sheet CSVs for upcoming deliveries
 const csvSources = {
   "3 Weeks Out": {
     url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vS2LfOVQyErcTtEMSwS1ch4GfUlcpXnNfih841L1Vms0B-9pNMSh9vW5k0TNrXDoQgv2-lgDnYWdzgM/pub?output=csv",
@@ -65,7 +65,7 @@ Object.entries(csvSources).forEach(([name, { url, color }]) => {
   const layer = L.layerGroup().addTo(map);
   csvLayers[name] = layer;
 
-  // UI checkbox
+  // Checkbox UI
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = name;
@@ -90,15 +90,17 @@ Object.entries(csvSources).forEach(([name, { url, color }]) => {
     header: true,
     complete: function(results) {
       results.data.forEach(row => {
-        const lat = parseFloat(row.lat || row.latitude);
-        const lon = parseFloat(row.lon || row.longitude);
+        const lat = parseFloat(row.lat);
+        const lon = parseFloat(row.long);
+        const name = row.FundraiserName || "Unknown";
+        const id = row.id || "N/A";
 
         if (!isNaN(lat) && !isNaN(lon)) {
           const marker = L.circleMarker([lat, lon], {
             radius: 5,
             color,
             fillOpacity: 0.8
-          }).bindPopup(`Name: ${row.name || "N/A"}`);
+          }).bindPopup(`<strong>${name}</strong><br>ID: ${id}`);
           marker.addTo(layer);
         }
       });
