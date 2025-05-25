@@ -1,62 +1,32 @@
 const map = L.map('map').setView([43.7, -79.4], 8);
 
-// Base layers
-const baseLayers = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }),
-  esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri'
-  }),
-  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri'
-  }),
-  light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; CartoDB'
-  })
-};
+// Carto Light as the fixed basemap
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; CartoDB'
+}).addTo(map);
 
-let currentBaseLayer = baseLayers.osm;
-currentBaseLayer.addTo(map);
-
-document.getElementById('basemap-select').addEventListener('change', (e) => {
-  const selected = e.target.value;
-  if (baseLayers[selected]) {
-    map.removeLayer(currentBaseLayer);
-    currentBaseLayer = baseLayers[selected];
-    currentBaseLayer.addTo(map);
-  }
-});
-
-// Layer source map
+// Delivery layer sources (only 3)
 const layerSources = {
-  "Wed Group": "https://klabbyklab.github.io/maplayers/wed_group.geojson",
-  "Thurs Group": "https://klabbyklab.github.io/maplayers/thurs_group.geojson",
-  "Fri Group": "https://klabbyklab.github.io/maplayers/fri_group.geojson",
-  "Sat Group": "https://klabbyklab.github.io/maplayers/sat_group.geojson",
-  "Wed Union": "https://klabbyklab.github.io/maplayers/wed_union.geojson",
-  "Thurs Union": "https://klabbyklab.github.io/maplayers/thurs_union.geojson",
-  "Fri Union": "https://klabbyklab.github.io/maplayers/fri_union.geojson",
-  "Sat Union": "https://klabbyklab.github.io/maplayers/sat_union.geojson",
-  "Zones": "https://klabbyklab.github.io/maplayers/zones.geojson",
-  "Villages": "https://klabbyklab.github.io/maplayers/zones_villages.geojson",
-  "Towns": "https://klabbyklab.github.io/maplayers/zones_towns.geojson",
-  "Cities": "https://klabbyklab.github.io/maplayers/zones_cities.geojson"
+  "Wed Group": {
+    url: "https://klabbyklab.github.io/maplayers/wed_group.geojson",
+    color: "green"
+  },
+  "Thurs Group": {
+    url: "https://klabbyklab.github.io/maplayers/thurs_group.geojson",
+    color: "red"
+  },
+  "Fri Group": {
+    url: "https://klabbyklab.github.io/maplayers/fri_group.geojson",
+    color: "blue"
+  }
 };
 
-const layers = {};
+const deliveryLayers = {};
+const turfPolygons = []; // Store features for analysis
+
+// Load layers and display checkboxes
 const controlContainer = document.getElementById('layer-controls');
-
-// Define fixed delivery day colors
-const deliveryColors = {
-  "wednesday": "green",
-  "thursday": "red",
-  "friday": "blue",
-  "saturday": "yellow"
-};
-
-// Loop through each GeoJSON layer
-Object.entries(layerSources).forEach(([name, url]) => {
+Object.entries(layerSources).forEach(([name, { url, color }]) => {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = name;
@@ -64,7 +34,7 @@ Object.entries(layerSources).forEach(([name, url]) => {
 
   const label = document.createElement('label');
   label.htmlFor = name;
-  label.textContent = name;
+  label.textContent = ` ${name}`;
 
   const wrapper = document.createElement('div');
   wrapper.appendChild(checkbox);
@@ -74,51 +44,76 @@ Object.entries(layerSources).forEach(([name, url]) => {
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      let geoLayer;
+      const layer = L.geoJSON(data, {
+        style: {
+          color,
+          weight: 2,
+          fillOpacity: 0.3
+        },
+        onEachFeature: (feature, layer) => {
+          layer.bindPopup(name);
+        }
+      }).addTo(map);
 
-      // Special label handling for cities, towns, villages
-      if (["Villages", "Towns", "Cities"].includes(name)) {
-        geoLayer = L.layerGroup();
-        data.features.forEach(feature => {
-          const coords = feature.geometry.coordinates;
-          const latlng = feature.geometry.type === "Point"
-            ? [coords[1], coords[0]]
-            : [coords[0][0][1], coords[0][0][0]]; // fallback for non-point
-
-          const label = feature.properties?.name || "Unnamed";
-          const marker = L.marker(latlng, {
-            icon: L.divIcon({
-              className: 'label-icon',
-              html: `<div style="font-size: 12px; color: #222;">${label}</div>`
-            })
-          });
-          marker.addTo(geoLayer);
-        });
-        geoLayer.addTo(map);
-      } else {
-        geoLayer = L.geoJSON(data, {
-          style: function (feature) {
-            const rawDay = (feature.properties?.delivery_day || name || "").toLowerCase();
-            const color = deliveryColors[rawDay] || "gray";
-            return {
-              color,
-              weight: 2,
-              fillOpacity: 0.25
-            };
-          },
-          onEachFeature: function (feature, layer) {
-            const info = feature.properties?.delivery_day || feature.properties?.zone_name || name;
-            layer.bindPopup(info);
-          }
-        }).addTo(map);
-      }
-
-      layers[name] = geoLayer;
+      deliveryLayers[name] = layer;
+      turfPolygons.push({ name, data });
 
       checkbox.addEventListener('change', (e) => {
-        e.target.checked ? geoLayer.addTo(map) : map.removeLayer(geoLayer);
+        e.target.checked ? layer.addTo(map) : map.removeLayer(layer);
       });
-    })
-    .catch(err => console.error(`Error loading layer "${name}":`, err));
+    });
 });
 
+// Postal code lookup
+document.getElementById('search-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const postal = document.getElementById('postal').value.trim();
+  const result = document.getElementById('result');
+
+  if (!postal) return;
+
+  const query = encodeURIComponent(postal);
+  const url = `https://nominatim.openstreetmap.org/search?q=${query}&countrycodes=ca&format=json`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (!data || !data.length) {
+        result.textContent = "❌ Postal code not found.";
+        return;
+      }
+
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+      const point = turf.point([lon, lat]);
+
+      let found = false;
+
+      turfPolygons.forEach(({ name, data }) => {
+        data.features.forEach(feature => {
+          const polygon = turf.feature(feature.geometry);
+          if (turf.booleanPointInPolygon(point, polygon)) {
+            found = true;
+            result.textContent = `✅ We deliver to this postal code on **${name.replace(" Group", "")}**.`;
+            map.setView([lat, lon], 13);
+            L.popup()
+              .setLatLng([lat, lon])
+              .setContent(`✅ You’re in our **${name.replace(" Group", "")}** delivery zone!`)
+              .openOn(map);
+          }
+        });
+      });
+
+      if (!found) {
+        result.textContent = "❌ Sorry, we do not currently deliver to this postal code.";
+        map.setView([lat, lon], 12);
+        L.popup()
+          .setLatLng([lat, lon])
+          .setContent(`❌ Not in a delivery zone.`)
+          .openOn(map);
+      }
+    })
+    .catch(() => {
+      result.textContent = "⚠️ Error searching postal code.";
+    });
+});
