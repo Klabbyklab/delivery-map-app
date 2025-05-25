@@ -8,6 +8,19 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="controls">
+    <h2>Delivery Layers</h2>
+    <div id="layer-controls"></div>
+
+    <h3>Basemap:</h3>
+    <select id="basemap-select">
+      <option value="osm">OpenStreetMap</option>
+      <option value="esri">Esri WorldStreetMap</option>
+      <option value="satellite">Esri Satellite</option>
+      <option value="light">Carto Light</option>
+    </select>
+  </div>
+
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
