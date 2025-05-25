@@ -3,22 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Delivery Zones Map</title>
+  <title>Delivery Zone Lookup</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="controls">
-    <h2>Delivery Layers</h2>
+    <form id="search-form">
+      <label for="postal">Enter your postal code:</label>
+      <input type="text" id="postal" placeholder="A1A 1A1" required />
+      <button type="submit">Check Delivery</button>
+    </form>
     <div id="layer-controls"></div>
-
-    <h3>Basemap:</h3>
-    <select id="basemap-select">
-      <option value="osm">OpenStreetMap</option>
-      <option value="esri">Esri WorldStreetMap</option>
-      <option value="satellite">Esri Satellite</option>
-      <option value="light">Carto Light</option>
-    </select>
+    <div id="result"></div>
   </div>
 
   <div id="map"></div>
