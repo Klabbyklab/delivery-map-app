@@ -1,6 +1,6 @@
 const map = L.map('map').setView([43.7, -79.4], 8);
 
-// Define basemap layers
+// Define base layers
 const baseLayers = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -16,17 +16,21 @@ const baseLayers = {
   })
 };
 
-// Load default basemap
-baseLayers.osm.addTo(map);
+// Add default basemap
+let currentBaseLayer = baseLayers.osm;
+currentBaseLayer.addTo(map);
 
-// Handle basemap switching
+// Basemap switcher
 document.getElementById('basemap-select').addEventListener('change', (e) => {
   const selected = e.target.value;
-  Object.values(baseLayers).forEach(layer => map.removeLayer(layer));
-  baseLayers[selected].addTo(map);
+  if (baseLayers[selected]) {
+    map.removeLayer(currentBaseLayer);
+    currentBaseLayer = baseLayers[selected];
+    currentBaseLayer.addTo(map);
+  }
 });
 
-// Define your GeoJSON layers (with user-friendly names)
+// GeoJSON layers to load
 const layerSources = {
   "Wed Group": "https://klabbyklab.github.io/maplayers/wed_group.geojson",
   "Thurs Group": "https://klabbyklab.github.io/maplayers/thurs_group.geojson",
@@ -42,14 +46,14 @@ const layerSources = {
   "Cities": "https://klabbyklab.github.io/maplayers/zones_cities.geojson"
 };
 
-const layers = {}; // Store each loaded layer
-const controls = document.getElementById('layer-controls');
+const layers = {};
+const controlContainer = document.getElementById('layer-controls');
 
-// Load each layer and set up checkbox UI
+// Create checkbox and fetch each layer
 Object.entries(layerSources).forEach(([name, url], index) => {
   const color = `hsl(${index * 30}, 70%, 50%)`;
 
-  // Create checkbox UI
+  // Create checkbox
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = name;
@@ -57,14 +61,14 @@ Object.entries(layerSources).forEach(([name, url], index) => {
 
   const label = document.createElement('label');
   label.htmlFor = name;
-  label.innerText = ` ${name}`;
+  label.textContent = name;
 
   const wrapper = document.createElement('div');
   wrapper.appendChild(checkbox);
   wrapper.appendChild(label);
-  controls.appendChild(wrapper);
+  controlContainer.appendChild(wrapper);
 
-  // Load GeoJSON layer
+  // Load the layer
   fetch(url)
     .then(res => res.json())
     .then(data => {
@@ -72,26 +76,27 @@ Object.entries(layerSources).forEach(([name, url], index) => {
         style: {
           color,
           weight: 2,
-          fillOpacity: 0.25
+          fillOpacity: 0.3
         },
         onEachFeature: function (feature, layer) {
-          const info =
-            feature.properties?.delivery_day ||
-            feature.properties?.zone_name ||
-            feature.properties?.name ||
-            name;
+          const info = feature.properties?.delivery_day ||
+                       feature.properties?.zone_name ||
+                       feature.properties?.name ||
+                       name;
           layer.bindPopup(info);
         }
       }).addTo(map);
-      layers[name] = geoLayer;
-    })
-    .catch(err => console.error(`Error loading ${name}:`, err));
 
-  // Toggle visibility
-  checkbox.addEventListener('change', (e) => {
-    const checked = e.target.checked;
-    if (layers[name]) {
-      checked ? map.addLayer(layers[name]) : map.removeLayer(layers[name]);
-    }
-  });
+      layers[name] = geoLayer;
+
+      // Add toggle behavior
+      checkbox.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          geoLayer.addTo(map);
+        } else {
+          map.removeLayer(geoLayer);
+        }
+      });
+    })
+    .catch(err => console.error(`Error loading layer "${name}":`, err));
 });
