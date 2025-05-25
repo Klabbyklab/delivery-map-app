@@ -5,24 +5,12 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; CartoDB'
 }).addTo(map);
 
-// Always-visible delivery zone layers
+// Delivery zones (non-toggleable)
 const geoLayers = {
-  "Wed Group": {
-    url: "https://klabbyklab.github.io/maplayers/wed_group.geojson",
-    color: "green"
-  },
-  "Thurs Group": {
-    url: "https://klabbyklab.github.io/maplayers/thurs_group.geojson",
-    color: "red"
-  },
-  "Fri Group": {
-    url: "https://klabbyklab.github.io/maplayers/fri_group.geojson",
-    color: "blue"
-  },
-  "Sat Group": {
-    url: "https://klabbyklab.github.io/maplayers/sat_group.geojson",
-    color: "gold"
-  }
+  "Wed Group": { url: "https://klabbyklab.github.io/maplayers/wed_group.geojson", color: "green" },
+  "Thurs Group": { url: "https://klabbyklab.github.io/maplayers/thurs_group.geojson", color: "red" },
+  "Fri Group": { url: "https://klabbyklab.github.io/maplayers/fri_group.geojson", color: "blue" },
+  "Sat Group": { url: "https://klabbyklab.github.io/maplayers/sat_group.geojson", color: "gold" }
 };
 
 Object.entries(geoLayers).forEach(([name, { url, color }]) => {
@@ -30,61 +18,88 @@ Object.entries(geoLayers).forEach(([name, { url, color }]) => {
     .then(res => res.json())
     .then(data => {
       L.geoJSON(data, {
-        style: {
-          color,
-          weight: 2,
-          fillOpacity: 0.15
-        },
-        onEachFeature: (feature, layer) => {
-          layer.bindPopup(name);
-        }
+        style: { color, weight: 2, fillOpacity: 0.15 },
+        onEachFeature: (feature, layer) => layer.bindPopup(name)
       }).addTo(map);
     });
 });
 
-// Google Sheet CSVs for upcoming deliveries
+// CSV layers
 const csvSources = {
   "3 Weeks Out": {
     url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vS2LfOVQyErcTtEMSwS1ch4GfUlcpXnNfih841L1Vms0B-9pNMSh9vW5k0TNrXDoQgv2-lgDnYWdzgM/pub?output=csv",
-    color: "purple"
+    defaultColor: "purple"
   },
   "2 Weeks Out": {
     url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQkTCHp6iaWJBboax7x-Ic8kmX6jlYkTzJhnCnv2WfPtmo70hXPijk0p1JI03vBQTPuyPuDVWzxbavP/pub?output=csv",
-    color: "orange"
+    defaultColor: "orange"
   },
   "1 Week Out": {
     url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSZ1kJEo0ZljAhlg4Lnr_Shz3-OJnV6uehE8vCA8280L4aCfNoWE85WEJnOG2jzL2jE-o0PWTMRZiFu/pub?output=csv",
-    color: "black"
+    defaultColor: "black"
   }
 };
 
-const csvLayers = {};
 const csvControl = document.getElementById('csv-controls');
+const csvLayers = {};
 
-Object.entries(csvSources).forEach(([name, { url, color }]) => {
-  const layer = L.layerGroup().addTo(map);
-  csvLayers[name] = layer;
+Object.entries(csvSources).forEach(([name, { url, defaultColor }]) => {
+  const groupLayer = L.layerGroup().addTo(map);
+  csvLayers[name] = { layer: groupLayer, markers: [], color: defaultColor };
 
-  // Checkbox UI
+  // Build control UI
+  const wrapper = document.createElement('div');
+  wrapper.classList.add('csv-block');
+
+  const header = document.createElement('div');
+  header.classList.add('csv-header');
+  header.textContent = name;
+
+  const tools = document.createElement('div');
+  tools.classList.add('csv-tools');
+
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.id = name;
   checkbox.checked = true;
-
-  const label = document.createElement('label');
-  label.htmlFor = name;
-  label.textContent = ` ${name}`;
-
-  const wrapper = document.createElement('div');
-  wrapper.appendChild(checkbox);
-  wrapper.appendChild(label);
-  csvControl.appendChild(wrapper);
-
-  checkbox.addEventListener('change', (e) => {
-    e.target.checked ? layer.addTo(map) : map.removeLayer(layer);
+  checkbox.addEventListener('change', () => {
+    checkbox.checked ? groupLayer.addTo(map) : map.removeLayer(groupLayer);
   });
 
-  // Load and parse CSV
+  // Color buttons
+  ["purple", "red", "green", "black"].forEach(color => {
+    const btn = document.createElement('button');
+    btn.textContent = color;
+    btn.style.backgroundColor = color;
+    btn.style.color = "white";
+    btn.addEventListener('click', () => {
+      csvLayers[name].color = color;
+      csvLayers[name].markers.forEach(m => m.setStyle({ color }));
+    });
+    tools.appendChild(btn);
+  });
+
+  // Count button
+  const countBtn = document.createElement('button');
+  countBtn.textContent = "Count";
+  countBtn.addEventListener('click', () => {
+    alert(`${csvLayers[name].markers.length} points in ${name}`);
+  });
+  tools.appendChild(countBtn);
+
+  // Highlight button
+  const highlightBtn = document.createElement('button');
+  highlightBtn.textContent = "Highlight";
+  highlightBtn.addEventListener('click', () => {
+    csvLayers[name].markers.forEach(m => m.openPopup());
+  });
+  tools.appendChild(highlightBtn);
+
+  wrapper.appendChild(checkbox);
+  wrapper.appendChild(header);
+  wrapper.appendChild(tools);
+  csvControl.appendChild(wrapper);
+
+  // Parse CSV
   Papa.parse(url, {
     download: true,
     header: true,
@@ -92,16 +107,17 @@ Object.entries(csvSources).forEach(([name, { url, color }]) => {
       results.data.forEach(row => {
         const lat = parseFloat(row.lat);
         const lon = parseFloat(row.long);
-        const name = row.FundraiserName || "Unknown";
-        const id = row.id || "N/A";
+        const fname = row.FundraiserName || "Unknown";
+        const id = row["id:"] || "N/A";
 
         if (!isNaN(lat) && !isNaN(lon)) {
           const marker = L.circleMarker([lat, lon], {
             radius: 5,
-            color,
+            color: defaultColor,
             fillOpacity: 0.8
-          }).bindPopup(`<strong>${name}</strong><br>ID: ${id}`);
-          marker.addTo(layer);
+          }).bindPopup(`<strong>${fname}</strong><br>ID: ${id}`);
+          marker.addTo(groupLayer);
+          csvLayers[name].markers.push(marker);
         }
       });
     }
