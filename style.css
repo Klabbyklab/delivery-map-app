@@ -40,3 +40,10 @@ body, html {
 #layer-controls div {
   min-width: 140px;
 }
+
+.label-icon {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
