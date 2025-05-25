@@ -12,21 +12,50 @@ body, html {
   z-index: 1000;
   position: relative;
   border-bottom: 1px solid #ccc;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
 }
+
+#legend, #csv-toggle-box {
+  min-width: 240px;
+}
+
+#legend h3, #csv-toggle-box h3 {
+  margin: 0 0 6px 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.color-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border-radius: 3px;
+  border: 1px solid #333;
+}
+
+.green { background-color: green; }
+.red { background-color: red; }
+.blue { background-color: blue; }
+.gold { background-color: gold; }
+.black { background-color: black; }
+.orange { background-color: orange; }
+.purple { background-color: purple; }
 
 #map {
   height: 90vh;
   width: 100%;
 }
 
-#layer-controls, #csv-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-#layer-controls div,
 #csv-controls div {
-  min-width: 160px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
 }
