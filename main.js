@@ -1,11 +1,11 @@
 const map = L.map('map').setView([43.7, -79.4], 8);
 
-// Carto Light as the fixed basemap
+// Carto Light basemap (fixed)
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; CartoDB'
 }).addTo(map);
 
-// Delivery layer sources (only 3)
+// Delivery layer sources (4 groups)
 const layerSources = {
   "Wed Group": {
     url: "https://klabbyklab.github.io/maplayers/wed_group.geojson",
@@ -18,14 +18,18 @@ const layerSources = {
   "Fri Group": {
     url: "https://klabbyklab.github.io/maplayers/fri_group.geojson",
     color: "blue"
+  },
+  "Sat Group": {
+    url: "https://klabbyklab.github.io/maplayers/sat_group.geojson",
+    color: "gold"
   }
 };
 
 const deliveryLayers = {};
-const turfPolygons = []; // Store features for analysis
+const turfPolygons = [];
 
-// Load layers and display checkboxes
 const controlContainer = document.getElementById('layer-controls');
+
 Object.entries(layerSources).forEach(([name, { url, color }]) => {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
@@ -48,7 +52,7 @@ Object.entries(layerSources).forEach(([name, { url, color }]) => {
         style: {
           color,
           weight: 2,
-          fillOpacity: 0.3
+          fillOpacity: 0.15
         },
         onEachFeature: (feature, layer) => {
           layer.bindPopup(name);
@@ -64,15 +68,17 @@ Object.entries(layerSources).forEach(([name, { url, color }]) => {
     });
 });
 
-// Postal code lookup
+// Postal code search with feedback
 document.getElementById('search-form').addEventListener('submit', function (e) {
   e.preventDefault();
+
   const postal = document.getElementById('postal').value.trim();
   const result = document.getElementById('result');
+  result.textContent = "🔎 Searching…";
 
   if (!postal) return;
 
-  const query = encodeURIComponent(postal);
+  const query = encodeURIComponent(postal + " Ontario Canada");
   const url = `https://nominatim.openstreetmap.org/search?q=${query}&countrycodes=ca&format=json`;
 
   fetch(url)
@@ -87,6 +93,8 @@ document.getElementById('search-form').addEventListener('submit', function (e) {
       const lon = parseFloat(data[0].lon);
       const point = turf.point([lon, lat]);
 
+      map.setView([lat, lon], 13);
+
       let found = false;
 
       turfPolygons.forEach(({ name, data }) => {
@@ -95,7 +103,6 @@ document.getElementById('search-form').addEventListener('submit', function (e) {
           if (turf.booleanPointInPolygon(point, polygon)) {
             found = true;
             result.textContent = `✅ We deliver to this postal code on **${name.replace(" Group", "")}**.`;
-            map.setView([lat, lon], 13);
             L.popup()
               .setLatLng([lat, lon])
               .setContent(`✅ You’re in our **${name.replace(" Group", "")}** delivery zone!`)
@@ -106,7 +113,6 @@ document.getElementById('search-form').addEventListener('submit', function (e) {
 
       if (!found) {
         result.textContent = "❌ Sorry, we do not currently deliver to this postal code.";
-        map.setView([lat, lon], 12);
         L.popup()
           .setLatLng([lat, lon])
           .setContent(`❌ Not in a delivery zone.`)
