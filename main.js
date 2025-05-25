@@ -1,6 +1,6 @@
 const map = L.map('map').setView([43.7, -79.4], 8);
 
-// Define base layers
+// Base layers
 const baseLayers = {
   osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -16,11 +16,9 @@ const baseLayers = {
   })
 };
 
-// Add default basemap
 let currentBaseLayer = baseLayers.osm;
 currentBaseLayer.addTo(map);
 
-// Basemap switcher
 document.getElementById('basemap-select').addEventListener('change', (e) => {
   const selected = e.target.value;
   if (baseLayers[selected]) {
@@ -30,7 +28,7 @@ document.getElementById('basemap-select').addEventListener('change', (e) => {
   }
 });
 
-// GeoJSON layers to load
+// Layer source map
 const layerSources = {
   "Wed Group": "https://klabbyklab.github.io/maplayers/wed_group.geojson",
   "Thurs Group": "https://klabbyklab.github.io/maplayers/thurs_group.geojson",
@@ -49,11 +47,16 @@ const layerSources = {
 const layers = {};
 const controlContainer = document.getElementById('layer-controls');
 
-// Create checkbox and fetch each layer
-Object.entries(layerSources).forEach(([name, url], index) => {
-  const color = `hsl(${index * 30}, 70%, 50%)`;
+// Define fixed delivery day colors
+const deliveryColors = {
+  "wednesday": "green",
+  "thursday": "red",
+  "friday": "blue",
+  "saturday": "yellow"
+};
 
-  // Create checkbox
+// Loop through each GeoJSON layer
+Object.entries(layerSources).forEach(([name, url]) => {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.id = name;
@@ -68,35 +71,54 @@ Object.entries(layerSources).forEach(([name, url], index) => {
   wrapper.appendChild(label);
   controlContainer.appendChild(wrapper);
 
-  // Load the layer
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      const geoLayer = L.geoJSON(data, {
-        style: {
-          color,
-          weight: 2,
-          fillOpacity: 0.3
-        },
-        onEachFeature: function (feature, layer) {
-          const info = feature.properties?.delivery_day ||
-                       feature.properties?.zone_name ||
-                       feature.properties?.name ||
-                       name;
-          layer.bindPopup(info);
-        }
-      }).addTo(map);
+      let geoLayer;
+
+      // Special label handling for cities, towns, villages
+      if (["Villages", "Towns", "Cities"].includes(name)) {
+        geoLayer = L.layerGroup();
+        data.features.forEach(feature => {
+          const coords = feature.geometry.coordinates;
+          const latlng = feature.geometry.type === "Point"
+            ? [coords[1], coords[0]]
+            : [coords[0][0][1], coords[0][0][0]]; // fallback for non-point
+
+          const label = feature.properties?.name || "Unnamed";
+          const marker = L.marker(latlng, {
+            icon: L.divIcon({
+              className: 'label-icon',
+              html: `<div style="font-size: 12px; color: #222;">${label}</div>`
+            })
+          });
+          marker.addTo(geoLayer);
+        });
+        geoLayer.addTo(map);
+      } else {
+        geoLayer = L.geoJSON(data, {
+          style: function (feature) {
+            const rawDay = (feature.properties?.delivery_day || name || "").toLowerCase();
+            const color = deliveryColors[rawDay] || "gray";
+            return {
+              color,
+              weight: 2,
+              fillOpacity: 0.25
+            };
+          },
+          onEachFeature: function (feature, layer) {
+            const info = feature.properties?.delivery_day || feature.properties?.zone_name || name;
+            layer.bindPopup(info);
+          }
+        }).addTo(map);
+      }
 
       layers[name] = geoLayer;
 
-      // Add toggle behavior
       checkbox.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          geoLayer.addTo(map);
-        } else {
-          map.removeLayer(geoLayer);
-        }
+        e.target.checked ? geoLayer.addTo(map) : map.removeLayer(geoLayer);
       });
     })
     .catch(err => console.error(`Error loading layer "${name}":`, err));
 });
+
